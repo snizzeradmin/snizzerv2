@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snizzer Leaks</title>
+    <!-- Preload TailwindCSS for faster loading -->
+    <link rel="preload" href="https://cdn.tailwindcss.com" as="script">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter font for premium feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome (optimized) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        dark: '#000000',
+                        'dark-card': '#121212',
+                        'dark-hover': '#1a1a1a',
+                        accent: '#ff3366'
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer components {
+            .video-card {
+                @apply bg-dark-card rounded-xl overflow-hidden transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-xl hover:shadow-black/30 hover:bg-dark-hover;
+            }
+            .video-thumbnail {
+                @apply w-full aspect-video object-cover transition-all duration-200;
+            }
+            .video-card:hover .video-thumbnail {
+                @apply brightness-110;
+            }
+            .video-title {
+                @apply text-gray-100 font-medium text-sm lg:text-base truncate p-4;
+            }
+            .search-input {
+                @apply w-full bg-dark-card text-gray-100 px-6 py-4 rounded-full border border-gray-800 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-transparent transition-all placeholder:text-gray-500;
+            }
+        }
+    </style>
+</head>
+<body class="bg-dark min-h-screen font-sans text-gray-100 antialiased">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Title Section -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">Snizzer Leaks</h1>
+        </header>
+
+        <!-- Search Bar -->
+        <div class="max-w-xl mx-auto mb-16">
+            <div class="relative">
+                <input type="text" placeholder="Search videos..." class="search-input">
+                <button class="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-accent transition-colors">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Video Grid -->
+        <div id="videoGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6 lg:gap-8">
+            <!-- Videos will be dynamically loaded here -->
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-12 hidden">
+            <i class="fas fa-spinner fa-spin text-4xl text-accent"></i>
+            <p class="mt-4 text-gray-400">Loading videos...</p>
+        </div>
+
+        <!-- No Results State -->
+        <div id="noResults" class="text-center py-12 hidden">
+            <i class="fas fa-search text-4xl text-gray-600"></i>
+            <p class="mt-4 text-gray-400">No videos found</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
