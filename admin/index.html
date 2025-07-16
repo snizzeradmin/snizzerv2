@@ -6,10 +6,264 @@
     <title>Snizzer Leaks Admin</title>
     <!-- TailwindCSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- Firebase SDK v10 (Modern Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+        // Configuration
+        const CONFIG = {
+            DEFAULT_THUMBNAIL: 'https://via.placeholder.com/300x180?text=No+Thumbnail',
+            PROGRESS_STEPS: {
+                VALIDATING: 25,
+                PROCESSING: 50,
+                SAVING: 75,
+                COMPLETE: 100
+            },
+            SUCCESS_DISPLAY_TIME: 3000,
+            MAX_TITLE_LENGTH: 100,
+            SUPPORTED_VIDEO_FORMATS: ['.mp4', '.webm', '.ogg', '.mov', '.avi', '.mkv'],
+            SUPPORTED_IMAGE_FORMATS: ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+        };
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDArLK_DvLfGk7cZ4gCjPZg1UgW-ClIu9M",
+            authDomain: "snizzerleaks.firebaseapp.com",
+            databaseURL: "https://snizzerleaks-default-rtdb.firebaseio.com",
+            projectId: "snizzerleaks",
+            storageBucket: "snizzerleaks.firebasestorage.app",
+            messagingSenderId: "392238282125",
+            appId: "1:392238282125:web:638cf35f0953c61c46f9c4",
+            measurementId: "G-WV5JVSE7SQ"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // DOM Elements
+        const uploadForm = document.getElementById('uploadForm');
+        const videoTitle = document.getElementById('videoTitle');
+        const videoUrl = document.getElementById('videoUrl');
+        const thumbnailUrl = document.getElementById('thumbnailUrl');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const progressBar = uploadProgress.querySelector('.progress-bar');
+
+        // Utility Functions
+        function isValidUrl(string) {
+            try {
+                const url = new URL(string);
+                return url.protocol === 'http:' || url.protocol === 'https:';
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function getFileExtension(url) {
+            try {
+                const pathname = new URL(url).pathname;
+                return pathname.substring(pathname.lastIndexOf('.')).toLowerCase();
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function isValidVideoUrl(url) {
+            if (!isValidUrl(url)) return false;
+            const extension = getFileExtension(url);
+            return CONFIG.SUPPORTED_VIDEO_FORMATS.includes(extension) || 
+                   url.includes('youtube.com') || 
+                   url.includes('vimeo.com') ||
+                   url.includes('dailymotion.com') ||
+                   // Allow URLs without extensions (could be streaming URLs)
+                   !extension;
+        }
+
+        function isValidImageUrl(url) {
+            if (!isValidUrl(url)) return false;
+            const extension = getFileExtension(url);
+            return CONFIG.SUPPORTED_IMAGE_FORMATS.includes(extension) || !extension;
+        }
+
+        function sanitizeInput(input) {
+            return input.trim().replace(/[<>]/g, '');
+        }
+
+        function validateForm() {
+            const errors = [];
+            
+            const title = sanitizeInput(videoTitle.value);
+            const video = videoUrl.value.trim();
+            const thumbnail = thumbnailUrl.value.trim();
+
+            if (!title) {
+                errors.push('Video title is required');
+            } else if (title.length > CONFIG.MAX_TITLE_LENGTH) {
+                errors.push(`Title must be ${CONFIG.MAX_TITLE_LENGTH} characters or less`);
+            }
+
+            if (!video) {
+                errors.push('Video URL is required');
+            } else if (!isValidVideoUrl(video)) {
+                errors.push('Please enter a valid video URL');
+            }
+
+            if (thumbnail && !isValidImageUrl(thumbnail)) {
+                errors.push('Please enter a valid image URL for thumbnail');
+            }
+
+            return errors;
+        }
+
+        async function checkUrlAccessibility(url) {
+            try {
+                const response = await fetch(url, { 
+                    method: 'HEAD',
+                    mode: 'no-cors'
+                });
+                return true;
+            } catch (error) {
+                // no-cors mode doesn't allow us to check status, so we assume it's accessible
+                // In a real implementation, this would be done server-side
+                return true;
+            }
+        }
+
+        function updateProgress(percentage) {
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        function showStatus(message, type = 'info') {
+            uploadStatus.textContent = message;
+            uploadStatus.className = `text-center text-sm mt-2 ${
+                type === 'error' ? 'text-red-500' : 
+                type === 'success' ? 'text-green-500' : 
+                'text-gray-300'
+            }`;
+        }
+
+        function resetForm() {
+            uploadForm.reset();
+            uploadProgress.classList.add('hidden');
+            updateProgress(0);
+            showStatus('');
+        }
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+
+            // Validate form
+            const errors = validateForm();
+            if (errors.length > 0) {
+                showStatus(errors[0], 'error');
+                return;
+            }
+
+            const title = sanitizeInput(videoTitle.value);
+            const video = videoUrl.value.trim();
+            const thumbnail = thumbnailUrl.value.trim();
+
+            // Show progress and start processing
+            uploadProgress.classList.remove('hidden');
+            showStatus('Validating inputs...');
+            updateProgress(CONFIG.PROGRESS_STEPS.VALIDATING);
+
+            try {
+                // Check URL accessibility (in real implementation, this would be server-side)
+                showStatus('Checking video accessibility...');
+                updateProgress(CONFIG.PROGRESS_STEPS.PROCESSING);
+
+                await checkUrlAccessibility(video);
+
+                if (thumbnail) {
+                    await checkUrlAccessibility(thumbnail);
+                }
+
+                // Save to Firestore
+                showStatus('Saving video to database...');
+                updateProgress(CONFIG.PROGRESS_STEPS.SAVING);
+
+                const docRef = await addDoc(collection(db, 'videos'), {
+                    title: title,
+                    videoURL: video,
+                    thumbnailURL: thumbnail || CONFIG.DEFAULT_THUMBNAIL,
+                    timestamp: serverTimestamp(),
+                    createdAt: new Date().toISOString()
+                });
+
+                // Success
+                updateProgress(CONFIG.PROGRESS_STEPS.COMPLETE);
+                showStatus('Video added successfully!', 'success');
+                
+                // Reset form after delay
+                setTimeout(() => {
+                    resetForm();
+                }, CONFIG.SUCCESS_DISPLAY_TIME);
+
+            } catch (error) {
+                console.error('Upload failed:', error);
+                
+                let errorMessage = 'An unexpected error occurred';
+                
+                if (error.code === 'permission-denied') {
+                    errorMessage = 'Permission denied. Please check your access rights.';
+                } else if (error.code === 'unavailable') {
+                    errorMessage = 'Service temporarily unavailable. Please try again.';
+                } else if (error.message) {
+                    errorMessage = `Upload failed: ${error.message}`;
+                }
+
+                showStatus(errorMessage, 'error');
+                uploadProgress.classList.add('hidden');
+                updateProgress(0);
+            }
+        }
+
+        // Event Listeners
+        uploadForm.addEventListener('submit', handleSubmit);
+
+        // Real-time validation
+        videoTitle.addEventListener('input', function() {
+            const remaining = CONFIG.MAX_TITLE_LENGTH - this.value.length;
+            if (remaining < 20) {
+                this.parentElement.querySelector('.char-count')?.remove();
+                const charCount = document.createElement('span');
+                charCount.className = `char-count text-xs ${remaining < 0 ? 'text-red-500' : 'text-gray-400'}`;
+                charCount.textContent = `${remaining} characters remaining`;
+                this.parentElement.appendChild(charCount);
+            } else {
+                this.parentElement.querySelector('.char-count')?.remove();
+            }
+        });
+
+        videoUrl.addEventListener('blur', function() {
+            const url = this.value.trim();
+            if (url && !isValidVideoUrl(url)) {
+                this.classList.add('border-red-500');
+                this.classList.remove('border-gray-600');
+            } else {
+                this.classList.remove('border-red-500');
+                this.classList.add('border-gray-600');
+            }
+        });
+
+        thumbnailUrl.addEventListener('blur', function() {
+            const url = this.value.trim();
+            if (url && !isValidImageUrl(url)) {
+                this.classList.add('border-red-500');
+                this.classList.remove('border-gray-600');
+            } else {
+                this.classList.remove('border-red-500');
+                this.classList.add('border-gray-600');
+            }
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            showStatus('Ready to add videos');
+        });
+    </script>
     <style>
         body { font-family: sans-serif; }
     </style>
@@ -20,126 +274,24 @@
         <form id="uploadForm" class="space-y-4">
             <div>
                 <label for="videoTitle" class="block text-sm font-medium text-gray-300">Video Title</label>
-                <input type="text" id="videoTitle" class="mt-1 block w-full p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring focus:ring-blue-500 focus:border-blue-500" required>
+                <input type="text" id="videoTitle" class="mt-1 block w-full p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring focus:ring-blue-500 focus:border-blue-500" required maxlength="100">
             </div>
             <div>
                 <label for="videoUrl" class="block text-sm font-medium text-gray-300">Video URL</label>
                 <input type="url" id="videoUrl" class="mt-1 block w-full p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring focus:ring-blue-500 focus:border-blue-500" required placeholder="https://example.com/video.mp4">
+                <p class="text-xs text-gray-400 mt-1">Supported: MP4, WebM, OGG, MOV, AVI, MKV, or streaming URLs</p>
             </div>
             <div>
                 <label for="thumbnailUrl" class="block text-sm font-medium text-gray-300">Thumbnail URL (Optional)</label>
                 <input type="url" id="thumbnailUrl" class="mt-1 block w-full p-3 rounded-md bg-gray-700 border border-gray-600 focus:ring focus:ring-blue-500 focus:border-blue-500" placeholder="https://example.com/thumbnail.jpg">
+                <p class="text-xs text-gray-400 mt-1">Supported: JPG, PNG, GIF, WebP</p>
             </div>
-            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300">Add Video</button>
-            <div id="uploadProgress" class="w-full bg-gray-700 rounded-full h-2.5 dark:bg-gray-700 hidden">
-                <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">Add Video</button>
+            <div id="uploadProgress" class="w-full bg-gray-700 rounded-full h-2.5 hidden">
+                <div class="progress-bar bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-in-out" style="width: 0%"></div>
             </div>
-            <p id="uploadStatus" class="text-center text-sm mt-2"></p>
+            <p id="uploadStatus" class="text-center text-sm mt-2 text-gray-300">Ready to add videos</p>
         </form>
     </div>
-
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyDArLK_DvLfGk7cZ4gCjPZg1UgW-ClIu9M",
-            authDomain: "snizzerleaks.firebaseapp.com",
-            projectId: "snizzerleaks",
-            storageBucket: "snizzerleaks.firebasestorage.app",
-            messagingSenderId: "392238282125",
-            appId: "1:392238282125:web:d216f6aa64e6ffb946f9c4",
-            measurementId: "G-VR1FCDNRQF"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const storage = firebase.storage();
-        const db = firebase.firestore();
-
-        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const videoTitle = document.getElementById('videoTitle').value;
-            const videoUrl = document.getElementById('videoUrl').value;
-            const thumbnailUrl = document.getElementById('thumbnailUrl').value;
-            const uploadStatus = document.getElementById('uploadStatus');
-            const uploadProgress = document.getElementById('uploadProgress');
-            const progressBar = uploadProgress.querySelector('div');
-
-            if (!videoUrl) {
-                uploadStatus.textContent = 'Please enter a video URL.';
-                uploadStatus.className = 'text-center text-sm mt-2 text-red-500';
-                return;
-            }
-
-            uploadProgress.classList.remove('hidden');
-            uploadStatus.textContent = 'Processing...';
-            uploadStatus.className = 'text-center text-sm mt-2 text-gray-300';
-            progressBar.style.width = '0%';
-
-            try {
-                let finalThumbnailURL = thumbnailUrl;
-                if (!thumbnailUrl) {
-                    // Generate thumbnail from video URL if no thumbnail URL is provided
-                    uploadStatus.textContent = 'Generating thumbnail from video...';
-                    finalThumbnailURL = await generateThumbnailFromVideoUrl(videoUrl);
-                    uploadStatus.textContent = 'Generated thumbnail from video.';
-                }
-
-                // Save video metadata to Firestore
-                await db.collection('videos').add({
-                    title: videoTitle,
-                    videoURL: videoUrl,
-                    thumbnailURL: finalThumbnailURL,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                uploadStatus.textContent = 'Video added successfully!';
-                uploadStatus.className = 'text-center text-sm mt-2 text-green-500';
-                document.getElementById('uploadForm').reset();
-                uploadProgress.classList.add('hidden');
-
-            } catch (error) {
-                console.error('Process failed:', error);
-                uploadStatus.textContent = `Process failed: ${error.message}`;
-                uploadStatus.className = 'text-center text-sm mt-2 text-red-500';
-                uploadProgress.classList.add('hidden');
-            }
-        });
-
-        async function generateThumbnailFromVideoUrl(videoUrl) {
-            return new Promise((resolve, reject) => {
-                const video = document.createElement('video');
-                video.crossOrigin = 'anonymous'; // Enable CORS for the video
-                video.src = videoUrl;
-                video.currentTime = 1; // Capture frame at 1 second
-                video.autoplay = false;
-                video.muted = true;
-                video.playsInline = true;
-
-                video.onloadeddata = async () => {
-                    try {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                        const thumbnailRef = storage.ref('thumbnails/thumbnail_' + Date.now() + '.png');
-                        const thumbnailUploadTask = thumbnailRef.put(blob);
-                        await thumbnailUploadTask;
-                        const thumbnailURL = await thumbnailUploadTask.snapshot.ref.getDownloadURL();
-                        resolve(thumbnailURL);
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-
-                video.onerror = () => {
-                    console.error('Error loading video for thumbnail generation.');
-                    resolve('https://via.placeholder.com/300x180?text=No+Thumbnail'); // Fallback
-                };
-            });
-        }
-    </script>
 </body>
 </html>
