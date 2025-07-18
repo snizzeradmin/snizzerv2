@@ -105,8 +105,7 @@
 
             if (!video) {
                 errors.push('Video URL is required');
-            } else if (!isValidVideoUrl(video)) {
-                errors.push('Please enter a valid video URL');
+        ;
             }
 
             if (thumbnail && !isValidImageUrl(thumbnail)) {
@@ -239,13 +238,7 @@
 
         videoUrl.addEventListener('blur', function() {
             const url = this.value.trim();
-            if (url && !isValidVideoUrl(url)) {
-                this.classList.add('border-red-500');
-                this.classList.remove('border-gray-600');
-            } else {
-                this.classList.remove('border-red-500');
-                this.classList.add('border-gray-600');
-            }
+            
         });
 
         thumbnailUrl.addEventListener('blur', function() {
